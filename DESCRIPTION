@@ -2,7 +2,7 @@ Package: relational
 Type: Package
 Title: Specify Primary, Unique, And Foreign Keys When Loading Data into SQL Databases
 Version: 0.0.0.9000
-Authors@R: person("Matthew", "Lincoln", email = "mlincoln@andrew.cmu.edu", roles = c("aut", "cre"))
+Authors@R: person("Matthew", "Lincoln", email = "mlincoln@andrew.cmu.edu", role = c("aut", "cre"))
 Description: More about what it does (maybe more than one line)
     Use four spaces when indenting paragraphs within the Description.
 License: GPL-3 + file LICENSE
