@@ -1,4 +1,29 @@
-# SQL Export helpers ----
+# Exported functions ----
+
+#' Write a table to a database with column and table constraints
+#'
+#' @param db A DBI connection.
+#' @param df A data frame object.
+#' @param tbl_name Name of the database.
+#' @param p_key Column to be constrained as `PRIMARY KEY`.
+#' @param u_keys Character vector with columns to be constrained as `UNIQUE`.
+#' @param nn_keys Character vector with columns to be constrained as `NOT NULL`.
+#' @param no_null Boolean. If `TRUE`, constrain all table columsn as `NOT NULL`.
+#'
+#' @export
+specify_tbl <- function(db, df, tbl_name, p_key = NULL, u_keys = NULL, nn_keys = NULL, no_null = FALSE, f_keys = NULL) {
+  if (no_null)
+    nn_keys <- names(df)
+
+  command <- format_pf_key(db, df, tbl_name, p_key, u_keys, nn_keys, f_keys)
+  message(command)
+  dbExecute(db, command)
+  build_indexes(tbl_name, f_keys) %>%
+    walk(~ dbExecute(conn = db, .x))
+  dbWriteTable(db, tbl_name, df, append = TRUE, overwrite = FALSE)
+}
+
+# Internal functions ----
 
 handle_column <- function(name, type, is_p, is_u, is_nn) {
   p <- if_else(is_p, " PRIMARY KEY UNIQUE NOT NULL", "")
@@ -56,45 +81,8 @@ build_indexes <- function(tbl_name, f_keys) {
   index_calls
 }
 
-write_tbl_key <- function(db, df, tbl_name, p_key = NULL, u_keys = NULL, nn_keys = NULL, no_null = FALSE, f_keys = NULL) {
-  if (no_null)
-    nn_keys <- names(df)
 
-  command <- format_pf_key(db, df, tbl_name, p_key, u_keys, nn_keys, f_keys)
-  message(command)
-  dbExecute(db, command)
-  build_indexes(tbl_name, f_keys) %>%
-    walk(~ dbExecute(conn = db, .x))
-  dbWriteTable(db, tbl_name, df, append = TRUE, overwrite = FALSE)
-}
 
-# Use schemacrawler (https://www.schemacrawler.com/diagramming.html) to generate
-# a PDF displaying the sqlite schema
-produce_db_schema <- function(dbpath, outpath, config_file, brief = FALSE, grep_string = NULL) {
-
-  std_args <- c(
-    "-server sqlite",
-    str_interp("-database ${dbpath}"),
-    "-outputformat pdf",
-    str_interp("-outputfile ${outpath}"),
-    "-password")
-
-  if (!is.null(grep_string)) {
-    std_args <- c(std_args,
-                  "-tables",
-                  grep_string,
-                  "-only-matching")
-  }
-
-  if (brief) {
-    this_args <- c(std_args,     "-command brief", "-infolevel standard")
-  } else {
-    this_args <- c(std_args, "-command schema", "-infolevel maximum")
-  }
-
-  system2("schemacrawler.sh",
-          args = this_args)
-}
 
 db_setup <- function(dbpath) {
   db <- dbConnect(RSQLite::SQLite(), dbpath)
@@ -153,11 +141,4 @@ db_clear <- function(db, pattern) {
   })
 }
 
-document_tables <- function(dbpath, outpath, pattern) {
-  db <- dbConnect(RSQLite::SQLite(), dbpath)
-  tables <- dbListTables(db) %>%
-    str_subset(pattern = pattern)
-  fnames <- map(set_names(tables), ~ dbListFields(db, .))
-  yaml::write_yaml(fnames, file = outpath)
-  dbDisconnect(db)
-}
+

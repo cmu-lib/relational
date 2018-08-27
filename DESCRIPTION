@@ -8,3 +8,10 @@ Description: More about what it does (maybe more than one line)
 License: GPL-3 + file LICENSE
 Encoding: UTF-8
 LazyData: true
+Imports: DBI,
+    RSQLite,
+    purrr,
+    yaml,
+    stringr
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 6.1.0
