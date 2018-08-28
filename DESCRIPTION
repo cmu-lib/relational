@@ -12,6 +12,7 @@ Imports: DBI,
     RSQLite,
     purrr,
     yaml,
-    stringr
+    stringr,
+    tibble
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 6.1.0

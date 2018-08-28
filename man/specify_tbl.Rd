@@ -8,7 +8,7 @@ specify_tbl(db, df, tbl_name, p_key = NULL, u_keys = NULL,
   nn_keys = NULL, no_null = FALSE, f_keys = NULL)
 }
 \arguments{
-\item{db}{A DBI connection.}
+\item{db}{A \link[DBI:DBIConnection-class]{DBI::DBIConnection} object.}
 
 \item{df}{A data frame object.}
 
@@ -21,6 +21,8 @@ specify_tbl(db, df, tbl_name, p_key = NULL, u_keys = NULL,
 \item{nn_keys}{Character vector with columns to be constrained as \code{NOT NULL}.}
 
 \item{no_null}{Boolean. If \code{TRUE}, constrain all table columsn as \code{NOT NULL}.}
+
+\item{f_keys}{Lists of foreign key declarations.}
 }
 \description{
 Write a table to a database with column and table constraints

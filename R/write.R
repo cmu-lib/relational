@@ -2,13 +2,16 @@
 
 #' Write a table to a database with column and table constraints
 #'
-#' @param db A DBI connection.
+#' @param db A [DBI::DBIConnection-class] object.
 #' @param df A data frame object.
 #' @param tbl_name Name of the database.
 #' @param p_key Column to be constrained as `PRIMARY KEY`.
 #' @param u_keys Character vector with columns to be constrained as `UNIQUE`.
 #' @param nn_keys Character vector with columns to be constrained as `NOT NULL`.
 #' @param no_null Boolean. If `TRUE`, constrain all table columsn as `NOT NULL`.
+#' @param f_keys Lists of foreign key declarations.
+#'
+#' @import purrr DBI
 #'
 #' @export
 specify_tbl <- function(db, df, tbl_name, p_key = NULL, u_keys = NULL, nn_keys = NULL, no_null = FALSE, f_keys = NULL) {
@@ -23,15 +26,37 @@ specify_tbl <- function(db, df, tbl_name, p_key = NULL, u_keys = NULL, nn_keys =
   dbWriteTable(db, tbl_name, df, append = TRUE, overwrite = FALSE)
 }
 
+#' Enable/disable foreign key constraints in a database
+#'
+#' @param db A DBI connection
+#' @return Invisibly returns the response from [DBI::dbExecute].
+#' @export
+db_enable_foreign_key_check <- function(db) {
+  # Enforce foreign key constraints
+  res <- dbExecute(db, "PRAGMA foreign_keys = ON")
+  stopifnot(DBI::dbGetQuery(db, "PRAGMA foreign_keys")[["foreign_keys"]][1] == 1)
+  invisible(res)
+}
+
+#' @describeIn db_enable_foreign_key_check Disable foreign key constraints
+#' @export
+db_disable_foreign_key_check <- function(db) {
+  # Enforce foreign key constraints
+  res <- DBI::dbExecute(db, "PRAGMA foreign_keys = OFF")
+  stopifnot(DBI::dbGetQuery(db, "PRAGMA foreign_keys")[["foreign_keys"]][1] == 0)
+  invisible(res)
+}
+
 # Internal functions ----
 
 handle_column <- function(name, type, is_p, is_u, is_nn) {
-  p <- if_else(is_p, " PRIMARY KEY UNIQUE NOT NULL", "")
-  u <- if_else(is_u, " UNIQUE", "")
-  nn <- if_else(is_nn, " NOT NULL", "")
-  str_interp("${name} ${type}${p}${u}${nn}")
+  p <- ifelse(is_p, " PRIMARY KEY UNIQUE NOT NULL", "")
+  u <- ifelse(is_u, " UNIQUE", "")
+  nn <- ifelse(is_nn, " NOT NULL", "")
+  stringr::str_interp("${name} ${type}${p}${u}${nn}")
 }
 
+#' @import stringr purrr
 format_pf_key <- function(db, df, tbl_name, p_key, u_keys, nn_keys, f_keys) {
 
   cnames <-  names(df)
@@ -69,10 +94,11 @@ format_pf_key <- function(db, df, tbl_name, p_key, u_keys, nn_keys, f_keys) {
       paste0(",\n", .)
   }
 
-  str_interp("CREATE TABLE ${tbl_name}\n(\n${all_fields}${foreign_key}\n)")
+  stringr::str_interp("CREATE TABLE ${tbl_name}\n(\n${all_fields}${foreign_key}\n)")
 }
 
 # Builds indexes on foreign keys
+#' @import stringr purrr
 build_indexes <- function(tbl_name, f_keys) {
   index_calls <- f_keys %>%
     map("f_key") %>%
@@ -81,38 +107,24 @@ build_indexes <- function(tbl_name, f_keys) {
   index_calls
 }
 
-
-
-
 db_setup <- function(dbpath) {
-  db <- dbConnect(RSQLite::SQLite(), dbpath)
+  db <- DBI::dbConnect(RSQLite::SQLite(), dbpath)
   return(db)
 }
 
-db_enable_foreign_key_check <- function(db) {
-  # Enforce foreign key constraints
-  dbExecute(db, "PRAGMA foreign_keys = ON")
-  stopifnot(dbGetQuery(db, "PRAGMA foreign_keys")[["foreign_keys"]][1] == 1)
-}
-
-db_disable_foreign_key_check <- function(db) {
-  # Enforce foreign key constraints
-  dbExecute(db, "PRAGMA foreign_keys = OFF")
-  stopifnot(dbGetQuery(db, "PRAGMA foreign_keys")[["foreign_keys"]][1] == 0)
-}
-
 # Cleanup the db before finishing
+#' @import tibble purrr
 db_cleanup <- function(db, vacuum = FALSE) {
 
   message("Validating foreign keys...")
-  fk_problems <- dbGetQuery(db, "PRAGMA foreign_key_check")
+  fk_problems <- DBI::dbGetQuery(db, "PRAGMA foreign_key_check")
   n_fk_problems <- nrow(fk_problems)
 
   if (n_fk_problems > 0) {
     message(n_fk_problems, " foreign key violations found and saved to fk_problems table.")
-    dbWriteTable(db, "fk_problems", fk_problems)
+    DBI::dbWriteTable(db, "fk_problems", fk_problems)
     fk_problems %>%
-      count(table, parent) %>%
+      table(table, parent) %>%
       as_tibble() %>%
       print()
   } else {
@@ -121,14 +133,15 @@ db_cleanup <- function(db, vacuum = FALSE) {
 
   if (vacuum) db_vacuum(db)
 
-  dbDisconnect(db)
+  DBI::dbDisconnect(db)
 }
 
 db_vacuum <- function(db) {
   message("Vacuuming database...")
-  dbExecute(db, "VACUUM")
+  DBI::dbExecute(db, "VACUUM")
 }
 
+#' @import stringr purrr DBI
 db_clear <- function(db, pattern) {
 
   tblnames <- dbGetQuery(db, "SELECT name FROM sqlite_master WHERE type='table'")[["name"]] %>%
@@ -140,5 +153,3 @@ db_clear <- function(db, pattern) {
     dbExecute(db, command)
   })
 }
-
-
